@@ -1,4 +1,4 @@
-# %% Reporting
+# %% Report
 
 ## Dependencies
 import numpy as np
