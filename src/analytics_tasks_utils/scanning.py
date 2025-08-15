@@ -619,3 +619,28 @@ def convert_excel_q_n_a_to_markdown(_source, _destination):
                             f.write('??? ' + 'null' + ' "'+_q+'"\n\n')
                             f.write(_qn + '\n\n\n\n')
 
+
+
+## scan_destination
+def scan_destination(location_to_scan, ext):
+    scan = []
+    for i in glob.iglob(rf"{location_to_scan}\**\*{ext}".format(ext), recursive=True):
+        scan.append(i)
+    if len(scan) > 0:
+        scan = pd.DataFrame(scan).rename(columns={0: "unc"})
+        scan["filename"] = scan["unc"].apply(lambda row: Path(row).name)
+        scan["ext"] = scan["unc"].apply(
+            lambda row: os.path.splitext(os.path.basename(row))[1]
+        )
+        scan["chart_hash"] = scan.filename.str.rsplit(".", expand=True, n=0)[0]
+    else:
+        scan = pd.DataFrame({"filename": ""}, index=([0]))
+    return scan
+
+
+
+
+
+
+
+

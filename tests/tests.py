@@ -3,10 +3,10 @@
 ## Dependencies
 import pandas as pd
 from pathlib import Path
-from analytics_tasks_utils.control import log_start, log_end, timer_start, timer_end
+from analytics_tasks_utils.controlling import log_start, log_end, timer_start, timer_end
 from analytics_tasks_utils.formatting import round_columns
-from analytics_tasks_utils.os import open_file_folder
-from analytics_tasks_utils.report import eda_snapshot
+from analytics_tasks_utils.os_functions import open_file_folder
+from analytics_tasks_utils.reporting import eda_snapshot
 
 
 # %% Control
