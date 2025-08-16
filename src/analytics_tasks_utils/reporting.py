@@ -65,3 +65,12 @@ def eda_snapshot(df, df_name="DataFrame"):
         }
     )
     print(df_s4)
+
+
+
+
+
+
+
+
+
