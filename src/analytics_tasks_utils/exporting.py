@@ -7,7 +7,6 @@ from datetime import datetime
 import shutil
 
 
-## export_folder_as_zip
 def export_folder_as_zip(source_folder, destination_folder, exclude_folder_names=None):
     if exclude_folder_names is None:
         exclude_folder_names = []
@@ -40,7 +39,6 @@ def export_folder_as_zip(source_folder, destination_folder, exclude_folder_names
     zf.close()
 
 
-## export_folder_as_zip_nfp
 def export_folder_as_zip_nfp(
     source_folder, destination_folder, exclude_folder_names=None
 ):
@@ -84,7 +82,6 @@ def export_folder_as_zip_nfp(
                 zf.write(absolute_path, arcname)
 
 
-## export_folder_as_zip_timestamp
 def export_folder_as_zip_timestamp(
     source_folder, destination_folder, exclude_folder_names=None
 ):
@@ -134,7 +131,6 @@ def export_folder_as_zip_timestamp(
     zf.close()
 
 
-## backup_folder_force_old
 def backup_folder_force_old(source_folder, destination_folder):
     import shutil
     import os
@@ -153,7 +149,6 @@ def backup_folder_force_old(source_folder, destination_folder):
         print(f"An unexpected error occurred: {e}")
 
 
-## backup_folder_force
 def backup_folder_force(source_folder, destination_folder, exclude_folders=None):
     """
     Copies the source folder to the destination, excluding specified folders.
@@ -185,7 +180,6 @@ def backup_folder_force(source_folder, destination_folder, exclude_folders=None)
         print(f"An unexpected error occurred: {e}")
 
 
-## zip_files
 def zip_files(file_list, destination_file):
     """
     Zips a list of files into a single zip file.
@@ -222,8 +216,6 @@ if __name__ == "__main__":
 
 
 # %% convert_color_excel_csv_to_html_md_mkdocs_data_table
-
-## Bright
 
 
 def generate_html_with_color_and_copy(hex_color):
@@ -346,9 +338,6 @@ def generate_html_from_dataframe(df, color_column_name):
 """
 
     return html_content
-
-
-## Dark
 
 
 def generate_html_with_color_and_copy_dark(hex_color):
@@ -511,7 +500,6 @@ def generate_html_from_dataframe_dark(df, color_column_name):
 # %% Abbreviations
 
 
-## Bright
 def generate_data_table_from_dataframe(df):
     html_content = """
 <!DOCTYPE html>
@@ -597,7 +585,6 @@ def generate_data_table_from_dataframe(df):
     return html_content
 
 
-## Dark
 def generate_data_table_from_dataframe_dark(df):
     html_content = """
 <!DOCTYPE html>

@@ -16,10 +16,456 @@ from bs4 import BeautifulSoup
 import os
 import re
 from nbconvert import PythonExporter
-from bs4 import BeautifulSoup
+import mammoth
+import markdownify
+import math
 
 
-## round_columns
+def create_bins_categorical(df, column_name=None, nbr_of_bins=5):
+    """
+    Create bins for a categorical column.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input data.  The function does **not** modify the original frame.
+    column_name : str | None
+        Column to bin.  If None, the first non‑numeric column is used.
+    nbr_of_bins : int
+        Desired number of bins.
+
+    Returns
+    -------
+    tuple
+        (df_copy, column_name, bins)
+    """
+    # Work on a copy to preserve the original df
+    df_copy = df.copy()
+
+    # Infer column if not supplied
+    if column_name is None:
+        cat_cols = df_copy.select_dtypes(include=["object", "category"]).columns
+        if not cat_cols.size:
+            raise ValueError(
+                "No categorical columns found; please specify `column_name`."
+            )
+        column_name = cat_cols[0]
+
+    # Ensure the column exists
+    if column_name not in df_copy.columns:
+        raise KeyError(f"Column '{column_name}' not found in DataFrame.")
+
+    # Get unique values and sort them
+    unique_values = sorted(df_copy[column_name].dropna().unique())
+
+    if len(unique_values) < nbr_of_bins:
+        raise ValueError(
+            f"Not enough unique values ({len(unique_values)}) for {nbr_of_bins} bins."
+        )
+
+    # Number of values per bin
+    values_per_bin = math.ceil(len(unique_values) / nbr_of_bins)
+
+    # Create the bins (list of lists)
+    bins = [
+        unique_values[i : i + values_per_bin]
+        for i in range(0, len(unique_values), values_per_bin)
+    ]
+
+    return df_copy, column_name, bins
+
+
+def generate_sql_case_statement_categorical(column_name, bins, null_label="00000"):
+    """
+    Build a SQL CASE statement that maps categorical values to bin labels.
+
+    Parameters
+    ----------
+    column_name : str
+        Name of the column in the SQL table.
+    bins : list[list]
+        Bins returned by ``create_bins_categorical``.
+    null_label : str, optional
+        Value returned for NULL entries.
+
+    Returns
+    -------
+    str
+        The CASE statement as a string.
+    """
+    case_statement_sql = "CASE\n"
+
+    # Construct WHEN/THEN clauses
+    for i, bin_values in enumerate(bins):
+        # Quote strings, leave numbers as‑is
+        bin_vals_sql = ", ".join(
+            f"'{v}'" if isinstance(v, str) else str(v) for v in bin_values
+        )
+        case_statement_sql += (
+            f"    WHEN `{column_name}` IN ({bin_vals_sql}) THEN 'Bin_{i + 1}'\n"
+        )
+
+    # Optional handling of NULLs
+    if null_label is not None:
+        case_statement_sql += f"    WHEN `{column_name}` IS NULL THEN '{null_label}'\n"
+
+    case_statement_sql += f"    ELSE '{null_label}'\nEND AS `{column_name}_bins`"
+
+    return case_statement_sql
+
+
+if __name__ == "__main__":
+    df = pd.DataFrame({"bining_column": ["zebra", "bat", "cat", "rat", "mouse", "dog"]})
+
+    df, column_name, bins = create_bins_categorical(df, nbr_of_bins=3)
+    case_statement_sql = generate_sql_case_statement_categorical(column_name, bins)
+
+    print(case_statement_sql)
+
+
+def generate_pandas_case_statement_categorical(df, column_name, bins):
+    # Create a dictionary to map each unique value to its corresponding bin label
+    bin_dict = {value: f"Bin_{i + 1}" for i, bin in enumerate(bins) for value in bin}
+
+    # Replace the values in the column with their corresponding bin labels
+    df[f"{column_name}_bins"] = df[column_name].map(bin_dict).fillna("00000")
+
+    return df
+
+
+if __name__ == "__main__":
+    df = pd.DataFrame({"bining_column": ["zebra", "bat", "cat", "rat", "mouse", "dog"]})
+
+    df, column_name, bins = create_bins_categorical(df, nbr_of_bins=3)
+    case_statement_pandas = generate_pandas_case_statement_categorical(
+        df, column_name, bins
+    )
+
+    print(case_statement_pandas)
+
+
+def create_bins_numeric(df, column_name, nbr_of_bins=5, range_min=0, range_max=100):
+    # Make a copy to avoid modifying the original dataframe
+    df = df.copy()
+    df.columns = df.columns.str.lower()
+
+    # Use the lowercased column name
+    column_name_lower = column_name.lower()
+
+    # Convert the column to numeric, dropping any non-numeric values
+    df[column_name_lower] = pd.to_numeric(df[column_name_lower], errors="coerce")
+    df = (
+        df.dropna().sort_values(column_name_lower).reset_index(drop=True)
+    )  # Sort the data and reset index
+
+    if df[column_name_lower].empty:
+        raise ValueError("No numeric data found after conversion.")
+
+    # Calculate bins using the entire data range
+    bins_default = pd.cut(df[column_name_lower], bins=nbr_of_bins)  # Default bins
+
+    # Create bins based on manually specified range_min and range_max
+    # Use float division to ensure proper bin width calculation
+    bin_width = (range_max - range_min) / nbr_of_bins
+    bins_rounded = np.arange(range_min, range_max + bin_width, bin_width)
+    bins_rounded_cut = pd.cut(
+        df[column_name_lower], bins=bins_rounded, include_lowest=True, right=False
+    )
+
+    # Add both bins to the dataframe
+    df["bins_default"] = bins_default  # Default bins based on data distribution
+    df["bins_rounded"] = bins_rounded_cut  # Manually specified range bins
+
+    return df, column_name_lower
+
+
+def generate_sql_case_statement_numeric(df, column_name):
+    unique_bins = df["bins_rounded"].dropna().unique()
+    case_statement = "case\n"
+
+    for bin_range in unique_bins:
+        lower, upper = bin_range.left, bin_range.right
+        # Construct the case statement
+        case_statement += f"    when {column_name} >= {lower} and {column_name} < {upper} then '{bin_range}'\n"
+
+    case_statement += f"    else '00000'\nend as {column_name}_bins"
+
+    return case_statement
+
+
+if __name__ == "__main__":
+    df = pd.DataFrame({"bining_column": [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]})
+
+    result, column_name = create_bins_numeric(
+        df, column_name="bining_column", nbr_of_bins=5, range_min=0, range_max=15
+    )
+    case_statement_sql = generate_sql_case_statement_numeric(result, column_name)
+
+    print(case_statement_sql)
+    print("\nDataFrame with bins:")
+    print(result)
+
+
+def dataframe_to_dict(df, key_col, value_col):
+    """
+    Converts two columns of a pandas DataFrame into a dictionary.
+
+    Args:
+      df: The pandas DataFrame.
+      key_col: The name of the column to use as keys.
+      value_col: The name of the column to use as values.
+
+    Returns:
+      A dictionary where keys are from key_col and values are from value_col.
+      Returns an empty dictionary if key_col or value_col are not found in the dataframe.
+    """
+    if key_col not in df.columns or value_col not in df.columns:
+        print(f"Error: Column '{key_col}' or '{value_col}' not found in DataFrame.")
+        return {}
+
+    return dict(zip(df[key_col], df[value_col]))
+
+
+if __name__ == "__main__":
+    data = {
+        "Name": ["Alice", "Bob", "Charlie"],
+        "Age": [25, 30, 28],
+        "City": ["New York", "London", "Tokyo"],
+    }
+    df = pd.DataFrame(data)
+
+    # Convert 'Name' and 'Age' columns to a dictionary
+    name_age_dict = dataframe_to_dict(df, "Name", "Age")
+    print("Name to Age Dictionary:", name_age_dict)
+
+    # Convert 'City' and 'Name' columns to a dictionary
+    city_name_dict = dataframe_to_dict(df, "City", "Name")
+    print("City to Name Dictionary:", city_name_dict)
+
+    # Example of error handling:
+    invalid_dict = dataframe_to_dict(df, "NotAColumn", "Age")
+    print("Invalid Dictionary:", invalid_dict)
+
+    # Example with duplicate keys. Last value will be kept.
+    duplicate_data = {"ID": [1, 2, 1, 3], "Value": ["A", "B", "C", "D"]}
+    duplicate_df = pd.DataFrame(duplicate_data)
+    duplicate_dict = dataframe_to_dict(duplicate_df, "ID", "Value")
+    print("Duplicate Key Dictionary:", duplicate_dict)
+
+
+# %% dataframe_to_dict_list
+
+
+def dataframe_to_dict_list(df, key_col, value_col):
+    """
+    Converts two columns of a pandas DataFrame into a dictionary, storing values in lists.
+
+    Args:
+        df: The pandas DataFrame.
+        key_col: The name of the column to use as keys.
+        value_col: The name of the column to use as values.
+
+    Returns:
+        A dictionary where keys are from key_col and values are lists of values from value_col.
+        Returns an empty dictionary if key_col or value_col are not found in the dataframe.
+    """
+    if key_col not in df.columns or value_col not in df.columns:
+        print(f"Error: Column '{key_col}' or '{value_col}' not found in DataFrame.")
+        return {}
+
+    result_dict = {}
+    for key, value in zip(df[key_col], df[value_col]):
+        if key in result_dict:
+            result_dict[key].append(value)
+        else:
+            result_dict[key] = [value]
+    return result_dict
+
+
+if __name__ == "__main__":
+    data = {
+        "parent": [
+            "interactive",
+            "interactive",
+            "interactive",
+            "interactive",
+            "interactive",
+            "interactive",
+            "interactive",
+        ],
+        "parent_1": [
+            "change",
+            "compare",
+            "correlation",
+            "flow",
+            "gantt",
+            "maps",
+            "test",
+        ],
+    }
+    df = pd.DataFrame(data)
+
+    result = dataframe_to_dict_list(df, "parent", "parent_1")
+    print(result)
+
+    # Example with more than one key
+    data2 = {
+        "parent": [
+            "interactive",
+            "interactive",
+            "interactive",
+            "static",
+            "static",
+            "static",
+        ],
+        "parent_1": ["change", "compare", "correlation", "flow", "gantt", "maps"],
+    }
+    df2 = pd.DataFrame(data2)
+
+    result2 = dataframe_to_dict_list(df2, "parent", "parent_1")
+    print(result2)
+
+    # Example of error handling:
+    invalid_dict = dataframe_to_dict_list(df, "NotAColumn", "parent_1")
+    print("Invalid Dictionary:", invalid_dict)
+
+
+def docx_to_md(
+    source_folder,
+    destination_folder,
+    file_size_limit_in_mb=None,
+    scan_subfolders=1,
+    folder_structure=1,
+):
+    """
+    Convert .docx files to .md format while optionally maintaining the folder structure.
+
+    Parameters:
+    - source_folder (str): Path to the source directory containing .docx files.
+    - destination_folder (str): Path to the destination directory where .md files will be saved.
+    - file_size_limit_in_mb (float, optional): Maximum file size in MB for conversion. Files larger than this will be skipped.
+    - scan_subfolders (int, 0|1): If 1, scan subfolders recursively; if 0, process only the source folder.
+    - folder_structure (int, 0|1): If 1, maintain folder structure in the destination; if 0, place all files in the destination folder.
+    """
+
+    # Define the custom style map for Mammoth
+    style_map = """
+    p[style-name='Contact Info'] => p.contact-info
+    p[style-name='Normal1'] => p.normal
+    p[style-name='Heading 31'] => h3
+    """
+
+    # Define file size limit in bytes, if specified
+    file_size_limit_bytes = (
+        file_size_limit_in_mb * 1024 * 1024 if file_size_limit_in_mb else None
+    )
+
+    for root, dirs, files in os.walk(source_folder):
+        if not scan_subfolders and root != source_folder:
+            continue
+
+        # Filter `.docx` files in the current directory
+        docx_files = [file for file in files if file.lower().endswith(".docx")]
+        if not docx_files:
+            continue  # Skip creating the destination directory if no .docx files are present
+
+        for file in docx_files:
+            source_file = os.path.join(root, file)
+
+            # Determine destination path based on `folder_structure` parameter
+            if folder_structure:
+                relative_path = os.path.relpath(root, source_folder)
+                dest_path = os.path.join(destination_folder, relative_path)
+            else:
+                dest_path = destination_folder
+
+            os.makedirs(dest_path, exist_ok=True)
+            destination_file = os.path.join(
+                dest_path, os.path.splitext(file)[0] + ".md"
+            )
+
+            # Check file size limit
+            if (
+                file_size_limit_bytes
+                and os.path.getsize(source_file) > file_size_limit_bytes
+            ):
+                print(f"Skipping {source_file}: File size exceeds the limit.")
+                continue
+
+            try:
+                # Read and convert .docx to HTML using Mammoth
+                with open(source_file, "rb") as docx_file:
+                    result = mammoth.convert_to_html(docx_file, style_map=style_map)
+                    html = result.value
+                    messages = result.messages
+                    if messages:
+                        print(f"Messages for {source_file}: {messages}")
+
+                # Parse the HTML with BeautifulSoup
+                soup = BeautifulSoup(html, "html.parser")
+
+                for strong in soup.find_all("strong"):
+                    strong.insert_before(soup.new_tag("br"))
+
+                # Decrease heading levels dynamically
+                for heading in soup.find_all(
+                    ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9"]
+                ):
+                    current_level = int(
+                        heading.name[1]
+                    )  # Extract the current heading level (e.g., 1 for <h1>)
+                    if (
+                        current_level < 6
+                    ):  # Only decrease if the level is less than 6 (since <h6> is the lowest level)
+                        new_level = current_level + 1
+                        heading.name = (
+                            f"h{new_level}"  # Update the tag to the new level
+                        )
+
+                # Ensure paragraphs and line breaks are preserved
+                for paragraph in soup.find_all("p"):
+                    # Replace any `<br>` tags within paragraphs with actual line breaks for Markdown compatibility
+                    paragraph_text = paragraph.decode_contents().replace("<br>", "\n")
+                    paragraph.string = (
+                        paragraph_text.strip()
+                    )  # Replace content with line-preserved text
+
+                # Get the modified HTML
+                modified_html = str(soup)
+
+                # Convert HTML to Markdown using Markdownify
+                try:
+                    markdown_content = markdownify.markdownify(
+                        modified_html, heading_style="ATX"
+                    )
+                except Exception as e:
+                    print(f"Markdown conversion error: {e}")
+                    markdown_content = modified_html
+
+                # Convert modified HTML to Markdown
+                markdown_output = markdownify.markdownify(
+                    markdown_content, heading_style="ATX"
+                )
+
+                # Create H1 heading with hyperlink to the original file
+                docx_name = os.path.splitext(file)[0]
+                h1_title = re.sub(r"[_-]+", " ", docx_name).strip().title()
+                corrected_path = source_file.replace("\\", "/")
+                h1_hyperlink = (
+                    f'# [{h1_title}](file:///{corrected_path}){{target="_blank"}}\n\n'
+                )
+
+                # Save Markdown to destination file
+                with open(destination_file, "w", encoding="utf-8") as md_file:
+                    md_file.write(h1_hyperlink)
+                    md_file.write(markdown_output)
+
+                print(f"Converted {source_file} -> {destination_file}")
+
+            except Exception as e:
+                print(f"Error processing {source_file}: {e}")
+
+
 def round_columns(df, columns, digits=2):
     """
     Rounds specified columns of a Pandas DataFrame to a given number of decimal places.
@@ -55,7 +501,6 @@ def round_columns(df, columns, digits=2):
     return df_copy
 
 
-## limit_text
 def limit_text(max_length=50, border=None, prefix="", suffix=""):
     """
     Copies text from clipboard, splits it into fixed-length lines,
@@ -137,7 +582,6 @@ if __name__ == "__main__":
     limit_text(max_length=50, prefix=">> ", suffix=" <<")
 
 
-## spacing_tables_for_txt_files
 def spacing_tables_for_txt_files(*, _df=pd.DataFrame({})):
     global clip_df
 
@@ -166,7 +610,6 @@ def spacing_tables_for_txt_files(*, _df=pd.DataFrame({})):
     clip_df.to_clipboard(index=False)
 
 
-## spacing_tables_for_txt_filesx
 def spacing_tables_for_txt_filesx(*, _df=pd.DataFrame({}), sep_fixed_width=" ", sep=""):
     """
     Formats a DataFrame for fixed-width output to the clipboard.
@@ -219,7 +662,6 @@ def spacing_tables_for_txt_filesx(*, _df=pd.DataFrame({}), sep_fixed_width=" ", 
         pd.DataFrame(output, columns=["Output"]).to_clipboard(index=False)
 
 
-## concatenate_column_values
 def concatenate_column_values(delimiter=",", sort=False, case_transform=None):
     """
     Concatenate column values from clipboard with specified options.
@@ -273,7 +715,6 @@ if __name__ == "__main__":
     concatenate_column_values(sort=True, case_transform="upper")
 
 
-## limit_text_df
 def limit_text_df(prefix="", suffix="", triple_quotes=False, df=None):
     """
     Formats a DataFrame with even spacing for each column, adds prefix and suffix to each row
@@ -574,7 +1015,6 @@ def clean_html_tables_and_styles(md_content):
 # %% convert_ipynb_to_py
 
 
-## convert_ipynb_to_py
 def convert_ipynb_to_py(ipynb_file, *, file_open=None):
     with open(ipynb_file, "r", encoding="utf-8") as f:
         nb = nbformat.read(f, as_version=4)
@@ -595,7 +1035,6 @@ def convert_ipynb_to_py(ipynb_file, *, file_open=None):
 # %% HTML to .md
 
 
-## HTML from mkdocs to markdown
 def html_to_markdown(html_path, output_md_path):
     with open(html_path, "r", encoding="utf-8") as f:
         soup = BeautifulSoup(f, "html.parser")
@@ -668,3 +1107,44 @@ if __name__ == "__main__":
     )
     output_md_path = r"C:\Users\Ashut\Downloads\output.md"
     html_to_markdown(html_path, output_md_path)
+
+
+# %% Color
+
+
+def hex_to_rgb(hex_color):
+    """
+    Converts a hexadecimal color code to an RGB tuple.
+
+    Args:
+      hex_color: The hexadecimal color code (e.g., '#FF0000').
+
+    Returns:
+      A tuple containing the RGB values (red, green, blue), each in the range 0-255.
+    """
+    hex_color = hex_color.lstrip("#")  # Remove the leading '#' if present
+    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def create_rgb_column(df, hex_column_name):
+    """
+    Creates a new column in the given DataFrame containing RGB tuples
+    from a column of hexadecimal color codes.
+
+    Args:
+      df: The pandas DataFrame.
+      hex_column_name: The name of the column containing hexadecimal colors.
+
+    Returns:
+      The DataFrame with the new 'rgb_color' column.
+    """
+    df["RGB color"] = df[hex_column_name].apply(hex_to_rgb)
+    return df
+
+
+if __name__ == "__main__":
+    data = {"hex_color": ["#FF0000", "#00FF00", "#0000FF"]}
+    df = pd.DataFrame(data)
+
+    df = create_rgb_column(df, "hex_color")
+    print(df)

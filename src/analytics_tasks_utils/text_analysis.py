@@ -10,6 +10,7 @@ from nltk.tokenize import word_tokenize
 from nltk.probability import FreqDist
 import spacy
 import pandas as pd
+import itertools
 
 nltk.download("wordnet")
 nltk.download("stopwords")
@@ -17,9 +18,9 @@ nltk.download("punkt")
 nltk.download("stopwords")
 nltk.download("wordnet")
 
-nlp = spacy.load('en_core_web_sm')
+nlp = spacy.load("en_core_web_sm")
 
-## clean_series
+
 def clean_series(x):
     """Return lemmatrized words with count"""
     # Convert to string and lower case
@@ -45,15 +46,12 @@ def clean_series(x):
     return freq
 
 
-""" 
-series = pd.Series(['This is a sample text.', 'Another sample text.'])
-result = series.apply(clean_series)
-print(result)
- """
+if __name__ == "__main__":
+    series = pd.Series(["This is a sample text.", "Another sample text."])
+    result = series.apply(clean_series)
+    print(result)
 
 
-
-## clean_text_df
 def clean_text_df(df, col):
     # Create a copy of the original dataframe to avoid modifying it directly
     df = df.copy()
@@ -84,36 +82,49 @@ def clean_text_df(df, col):
     return df
 
 
-"""
-import pandas as pd
+if __name__ == "__main__":
+    # Create a sample dataframe
+    df = pd.DataFrame({"text": ["This is a sample text.", "Another sample text."]})
 
-# Create a sample dataframe
-df = pd.DataFrame({
-    'text': ['This is a sample text.', 'Another sample text.']
-})
+    # Clean the text
+    df = clean_text_df(df, "text")
 
-# Clean the text
-df = clean_text_df(df, 'text')
+    print(df)
 
-print(df) """
 
+def generate_anagrams(word):
+    """
+    Generates all possible anagrams for a given word.
+
+    Parameters:
+        word (str): The input word to generate anagrams from.
+
+    Returns:
+        list: A list of unique anagrams.
+    """
+    # Use itertools.permutations to create all possible letter arrangements
+    permutations = itertools.permutations(word)
+
+    # Join the tuples into strings and remove duplicates by converting to a set
+    unique_anagrams = set("".join(p) for p in permutations)
+
+    # Return the sorted list of unique anagrams
+    return sorted(unique_anagrams)
 
 
 ## pos_tags_df
 def pos_tags_df(df, col):
     # Process the text and get POS tags
-    df[f'{col}_pos_tags'] = df[col].apply(lambda x: [(token.text, token.pos_) for token in nlp(str(x))])
-    
+    df[f"{col}_pos_tags"] = df[col].apply(
+        lambda x: [(token.text, token.pos_) for token in nlp(str(x))]
+    )
+
     return df
 
-""" 
-df = pd.DataFrame({
-    'text': ['This is a sample text.', 'Another sample text.']
-})
 
-df = pos_tags_df(df, 'text')
+if __name__ == "__main__":
+    df = pd.DataFrame({"text": ["This is a sample text.", "Another sample text."]})
 
-print(df)
- """
+    df = pos_tags_df(df, "text")
 
-
+    print(df)
