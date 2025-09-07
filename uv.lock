@@ -20,8 +20,10 @@ dependencies = [
     { name = "nltk" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "pip" },
     { name = "pyperclip" },
     { name = "spacy" },
+    { name = "spellchecker" },
     { name = "youtube-transcript-api" },
 ]
 
@@ -36,8 +38,10 @@ requires-dist = [
     { name = "nltk", specifier = ">=3.9.1" },
     { name = "numpy", specifier = ">=2.3.2" },
     { name = "pandas", specifier = ">=2.3.1" },
+    { name = "pip", specifier = ">=25.2" },
     { name = "pyperclip", specifier = ">=1.9.0" },
     { name = "spacy", specifier = ">=3.8.7" },
+    { name = "spellchecker", specifier = ">=0.4" },
     { name = "youtube-transcript-api", specifier = ">=1.2.2" },
 ]
 
@@ -474,6 +478,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/f1/70/7703c29685631f5a7
 wheels = [
     { url = "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl", hash = "sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3", size = 70442, upload-time = "2024-09-15T18:07:37.964Z" },
 ]
+
+[[package]]
+name = "inexactsearch"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "silpa-common" },
+    { name = "soundex" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/45/23/0b398af4295da99c5ab69d7b0bff36a2cb68e260a65f64717c17f6a20035/inexactsearch-1.0.2.tar.gz", hash = "sha256:b7df09c46e1ea73996449ceb4df265483e4dc6b61dac2ea4df6f2e5ad8d53b75", size = 21057, upload-time = "2014-06-01T14:15:50.74Z" }
 
 [[package]]
 name = "jinja2"
@@ -1223,6 +1237,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pip"
+version = "25.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/20/16/650289cd3f43d5a2fadfd98c68bd1e1e7f2550a1a5326768cddfbcedb2c5/pip-25.2.tar.gz", hash = "sha256:578283f006390f85bb6282dffb876454593d637f5d1be494b5202ce4877e71f2", size = 1840021, upload-time = "2025-07-30T21:50:15.401Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/3f/945ef7ab14dc4f9d7f40288d2df998d1837ee0888ec3659c813487572faa/pip-25.2-py3-none-any.whl", hash = "sha256:6d67a2b4e7f14d8b31b8b52648866fa717f45a1eb70e83002f4331d07e953717", size = 1752557, upload-time = "2025-07-30T21:50:13.323Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.3.8"
 source = { registry = "https://pypi.org/simple" }
@@ -1708,6 +1731,12 @@ wheels = [
 ]
 
 [[package]]
+name = "silpa-common"
+version = "0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/55/452f5103cb7071d188a818d9e2f12c19c4c8a12124a28aaa212eb6716a4d/silpa_common-0.3.tar.gz", hash = "sha256:d4a4366193fd606fdcbf6d6e996a57a8bed9ff54ec8e2f798d2b7bc885dde3fd", size = 9364, upload-time = "2014-05-03T04:09:04.051Z" }
+
+[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1727,6 +1756,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/18/2b/5e7234c68ed5bc872
 wheels = [
     { url = "https://files.pythonhosted.org/packages/08/5b/a2a3d4514c64818925f4e886d39981f1926eeb5288a4549c6b3c17ed66bb/smart_open-7.3.0.post1-py3-none-any.whl", hash = "sha256:c73661a2c24bf045c1e04e08fffc585b59af023fe783d57896f590489db66fb4", size = 61946, upload-time = "2025-07-03T10:06:29.599Z" },
 ]
+
+[[package]]
+name = "soundex"
+version = "1.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "silpa-common" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f8/8f/37b9711595d007e82f70ae6f41b6ab6a1fda406a8321ccfc458fb5023b5f/soundex-1.1.3.tar.gz", hash = "sha256:f837692afab3dc4f0132a36d8e8a8384f6ac8349fffdf5103291c3d1c2d48ad3", size = 9061, upload-time = "2014-06-01T14:14:54.914Z" }
 
 [[package]]
 name = "soupsieve"
@@ -1804,6 +1842,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/67/3d/926db774c9c98acf6
 wheels = [
     { url = "https://files.pythonhosted.org/packages/33/78/d1a1a026ef3af911159398c939b1509d5c36fe524c7b644f34a5146c4e16/spacy_loggers-1.0.5-py3-none-any.whl", hash = "sha256:196284c9c446cc0cdb944005384270d775fdeaf4f494d8e269466cfa497ef645", size = 22343, upload-time = "2023-09-11T12:26:50.586Z" },
 ]
+
+[[package]]
+name = "spellchecker"
+version = "0.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "inexactsearch" },
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8d/2f/95ff55a821f6fc83999f8418045ee472edcfd5fb06905090f68fda56a82a/spellchecker-0.4.tar.gz", hash = "sha256:7ebe5480641d2fa555e4a9d0592e6f6866d095c37c5563e38a349f8ce26358c7", size = 3929271, upload-time = "2013-07-31T17:56:09.196Z" }
 
 [[package]]
 name = "srsly"

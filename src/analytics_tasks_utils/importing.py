@@ -4,7 +4,8 @@
 import zipfile
 import pandas as pd
 import json
-
+from youtube_transcript_api import YouTubeTranscriptApi
+import subprocess as sp
 
 def import_csv_within_zip(
     zip_filename,
@@ -229,3 +230,47 @@ def import_parquet_within_zip(zip_filename, filename, columns=None, **kwargs):
         with zf.open(filename) as file:
             df = pd.read_parquet(file, columns=columns, **kwargs)
     return df
+
+
+
+
+
+def import_youtube_subtitle(video_id, language='en'):
+    """
+    Downloads subtitles for a YouTube video and exports them to a text file.
+
+    Args:
+        video_id (str): The ID of the YouTube video.
+        output_file (str, optional): The path to the output file. Defaults to "subtitle.txt".
+        language (str, optional): The language of the subtitles. Defaults to 'en'.
+    """
+
+    try:
+        # Download subtitle
+        ytt_api = YouTubeTranscriptApi()
+        fetched_transcript = ytt_api.fetch(video_id)
+        print(f'{fetched_transcript[1]}')
+
+        # Export
+        output_file = f'{video_id}.txt'
+        with open(output_file, "w", encoding='utf-8') as f:
+            for snippet in fetched_transcript:
+                # f.write("{}\n".format(i))
+                # f.write("{}\n".format(i["text"]))
+                # f.write("{} ".format(i["text"]))
+                f.write(f'{snippet.text}\n')
+
+        # Open the file
+        sp.Popen(f'explorer "{output_file}"')
+
+        print(f"Subtitles downloaded and saved to {output_file}")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    return fetched_transcript
+
+
+if __name__ == '__main__':
+    video_id = "yN9XgwVHvK4"
+    import_youtube_subtitle(video_id)
