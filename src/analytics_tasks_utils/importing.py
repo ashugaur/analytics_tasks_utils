@@ -6,7 +6,6 @@ import pandas as pd
 import json
 
 
-## import_csv_within_zip
 def import_csv_within_zip(
     zip_filename,
     filename,
@@ -52,7 +51,6 @@ def import_csv_within_zip(
     return df
 
 
-## import_excel_within_zip
 def import_excel_within_zip(
     zip_filename,
     filename,
@@ -102,7 +100,6 @@ def import_excel_within_zip(
     return df
 
 
-## import_txt_within_zip
 def import_txt_within_zip(
     zip_filename,
     filename,
@@ -151,7 +148,6 @@ def import_txt_within_zip(
     return df
 
 
-## import_json_within_zip
 def import_json_within_zip(
     zip_filename,
     filename,
@@ -215,13 +211,8 @@ def import_json_within_zip(
                 )
     return df
 
-## import_parquet_within_zip
-def import_parquet_within_zip(
-    zip_filename,
-    filename,
-    columns=None,
-    **kwargs
-):
+
+def import_parquet_within_zip(zip_filename, filename, columns=None, **kwargs):
     """
     Import a Parquet file within a zip archive.
 
@@ -236,11 +227,5 @@ def import_parquet_within_zip(
     """
     with zipfile.ZipFile(zip_filename) as zf:
         with zf.open(filename) as file:
-            df = pd.read_parquet(
-                file,
-                columns=columns,
-                **kwargs
-            )
+            df = pd.read_parquet(file, columns=columns, **kwargs)
     return df
-
-
