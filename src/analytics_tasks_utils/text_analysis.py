@@ -5,14 +5,20 @@ from collections import Counter
 import spacy
 import itertools
 from nltk.stem import PorterStemmer
-from nltk.corpus import wordnet
+from nltk.corpus import wordnet, cmudict
 import textwrap
 import nltk
+from collections import defaultdict
+# import coreferee
+
 
 """
 import nltk
 nltk.download("punkt")
 nltk.download("wordnet")
+nltk.download('cmudict')
+nltk.download('averaged_perceptron_tagger')
+nlp.add_pipe('coreferee')
 """
 
 
@@ -125,6 +131,59 @@ if __name__ == "__main__":
     print(new_df)
 
 
+def coreferences(df, column_name):
+    """
+    Extract coreferences from a given DataFrame column.
+
+    Args:
+    df (pd.DataFrame): DataFrame containing text data.
+    column_name (str): Name of the column to extract coreferences from.
+
+    Returns:
+    pd.DataFrame: DataFrame with coreferences.
+    """
+
+    # Process the text data using SpaCy
+    coreferences = []
+    for text in df[column_name]:
+        doc = nlp(text)
+        if doc._.coref_chains:
+            for chain in doc._.coref_chains:
+                mentions = []
+                for mention in chain.mentions:
+                    mentions.append(
+                        {
+                            "text": mention.text,
+                            "start": mention.start,
+                            "end": mention.end,
+                        }
+                    )
+                coreferences.append({"chain_id": chain.chain_id, "mentions": mentions})
+
+    # Create a DataFrame with coreferences
+    output_df = pd.DataFrame(
+        [
+            (
+                coref["chain_id"],
+                ", ".join([mention["text"] for mention in coref["mentions"]]),
+            )
+            for coref in coreferences
+        ],
+        columns=["chain_id", "mentions"],
+    )
+
+    return output_df
+
+
+if __name__ == "__main__":
+    nlp = spacy.load("en_core_web_sm")
+    nlp.add_pipe("coreferee")
+    df = pd.DataFrame(
+        {"text": ["John Smith is a developer. He works at XYZ Corporation."]}
+    )
+    print(coreferences(df, "text"))
+
+
 def emojis(string):
     emoji_pattern = re.compile(
         "["
@@ -139,6 +198,62 @@ def emojis(string):
     )
 
     return emoji_pattern.sub(r"", string)
+
+
+def entity_tracking(df, column_name):
+    """
+    Extract entity tracking from a given DataFrame column.
+
+    Args:
+    df (pd.DataFrame): DataFrame containing text data.
+    column_name (str): Name of the column to extract entity tracking from.
+
+    Returns:
+    pd.DataFrame: DataFrame with entity tracking.
+    """
+
+    # Initialize a dictionary to store entity tracking
+    entity_tracking = {}
+
+    # Process the text data using SpaCy
+    for text in df[column_name]:
+        doc = nlp(text)
+        for sent in doc.sents:
+            # Iterate through named entities in the sentence
+            for ent in sent.ents:
+                # Track entities and update if seen again
+                if ent.text in entity_tracking:
+                    entity_tracking[ent.text]["count"] += 1
+                    entity_tracking[ent.text]["sentences"].append(sent.text)
+                else:
+                    entity_tracking[ent.text] = {
+                        "label": ent.label_,
+                        "count": 1,
+                        "sentences": [sent.text],
+                    }
+
+    # Create a DataFrame with entity tracking
+    output_df = pd.DataFrame(
+        [
+            (entity, info["label"], info["count"], ", ".join(info["sentences"]))
+            for entity, info in entity_tracking.items()
+        ],
+        columns=["entity", "label", "count", "sentences"],
+    )
+
+    return output_df
+
+
+if __name__ == "__main__":
+    df = pd.DataFrame(
+        {
+            "text": [
+                "John Smith is a developer. He works at XYZ Corporation.",
+                "John Smith is a great developer.",
+            ]
+        }
+    )
+    print(entity_tracking(df, "text"))
 
 
 def frequent_words(df, text_column, threshold=10):
@@ -232,15 +347,182 @@ if __name__ == "__main__":
     print(combined_df)
 
 
-def homographs():
-    pass
+def homographs(df, column_name):
+    """
+    Extract homographs from a given DataFrame column.
+
+    Args:
+    df (pd.DataFrame): DataFrame containing text data.
+    column_name (str): Name of the column to extract homographs from.
+
+    Returns:
+    pd.DataFrame: DataFrame with words and their corresponding homograph senses.
+    """
+
+    # Get unique words from the DataFrame column
+    words = df[column_name].str.lower().str.split().explode().unique()
+
+    # Create a dictionary to store homographs
+    homographs_dict = defaultdict(list)
+
+    # Populate the homographs dictionary
+    for word in words:
+        synsets = wordnet.synsets(word)
+        if len(synsets) > 1:
+            for synset in synsets:
+                homographs_dict[word].append(
+                    {"sense": synset.definition(), "pos": synset.pos()}
+                )
+
+    # Filter out words with only one sense
+    homographs_dict = {k: v for k, v in homographs_dict.items() if len(v) > 1}
+
+    # Create a DataFrame with words and their homograph senses
+    output_df = pd.DataFrame(
+        [
+            (
+                word,
+                ", ".join([f"{sense['sense']} ({sense['pos']})" for sense in senses]),
+            )
+            for word, senses in homographs_dict.items()
+        ],
+        columns=["word", "senses"],
+    )
+
+    return output_df
 
 
-def homophones():
-    pass
+if __name__ == "__main__":
+    df = pd.DataFrame(
+        {
+            "text": [
+                "The bank is a financial institution",
+                "The bank of the river was lined with trees",
+            ]
+        }
+    )
+    print(homographs(df, "text"))
 
-def hyponyms():
-    pass
+
+def homophones(df, column_name):
+    """
+    Extract homophones from a given DataFrame column.
+
+    Args:
+    df (pd.DataFrame): DataFrame containing text data.
+    column_name (str): Name of the column to extract homophones from.
+
+    Returns:
+    pd.DataFrame: DataFrame with words and their corresponding homophones.
+    """
+
+    # Initialize the CMU Pronouncing Dictionary
+    d = cmudict.dict()
+
+    # Function to get phonemes for a word
+    def get_phonemes(word):
+        try:
+            return d[word.lower()][0]
+        except KeyError:
+            return None
+
+    # Get unique words from the DataFrame column
+    words = df[column_name].str.lower().str.split().explode().unique()
+
+    # Create a dictionary to store homophones
+    homophones_dict = defaultdict(list)
+
+    # Populate the homophones dictionary
+    for word in words:
+        phonemes = get_phonemes(word)
+        if phonemes is not None:
+            homophones_dict[tuple(phonemes)].append(word)
+
+    # Filter out words with no homophones
+    homophones_dict = {k: v for k, v in homophones_dict.items() if len(v) > 1}
+
+    # Create a DataFrame with words and their homophones
+    output_df = pd.DataFrame(
+        [
+            (word, ", ".join([w for w in homophones if w != word]))
+            for homophones in homophones_dict.values()
+            for word in homophones
+        ],
+        columns=["word", "homophones"],
+    )
+
+    return output_df
+
+
+if __name__ == "__main__":
+    df = pd.DataFrame(
+        {"text": ["This is a test sentence", "Another sentence with different words"]}
+    )
+    print(homophones(df, "text"))
+
+
+def hyponyms(df, column_name):
+    """
+    Extract hyponyms from a given DataFrame column.
+
+    Args:
+    df (pd.DataFrame): DataFrame containing text data.
+    column_name (str): Name of the column to extract hyponyms from.
+
+    Returns:
+    pd.DataFrame: DataFrame with words and their corresponding hyponyms.
+    """
+
+    # Get unique words from the DataFrame column
+    words = df[column_name].str.lower().str.split().explode().unique()
+
+    # Create a dictionary to store hyponyms
+    hyponyms_dict = defaultdict(list)
+
+    # Populate the hyponyms dictionary
+    for word in words:
+        synsets = wordnet.synsets(word)
+        for synset in synsets:
+            for hyponym in synset.hyponyms():
+                hyponyms_dict[word].append(
+                    {
+                        "hyponym": hyponym.name().split(".")[0],
+                        "definition": hyponym.definition(),
+                        "pos": hyponym.pos(),
+                    }
+                )
+
+    # Remove duplicates and filter out words with no hyponyms
+    hyponyms_dict = {
+        k: [dict(t) for t in {tuple(d.items()) for d in v}]
+        for k, v in hyponyms_dict.items()
+        if v
+    }
+
+    # Create a DataFrame with words and their hyponyms
+    output_df = pd.DataFrame(
+        [
+            (
+                word,
+                ", ".join(
+                    [
+                        f"{hyponym['hyponym']} ({hyponym['pos']}) - {hyponym['definition']}"
+                        for hyponym in hyponyms
+                    ]
+                ),
+            )
+            for word, hyponyms in hyponyms_dict.items()
+        ],
+        columns=["word", "hyponyms"],
+    )
+
+    return output_df
+
+
+if __name__ == "__main__":
+    df = pd.DataFrame({"text": ["The tree is a plant", "The car is a vehicle"]})
+    print(hyponyms(df, "text"))
+
 
 def lemmatize_text(text):
     nlp = spacy.load("en_core_web_sm")
@@ -263,6 +545,62 @@ if __name__ == "__main__":
     text_data["lemmatized"] = text_data["text"].apply(lemmatize_text)
 
     print(text_data)
+
+
+def lexical_chains(text):
+    """
+    Extract lexical chains from a given text.
+
+    Args:
+    text (str): The text to extract lexical chains from.
+
+    Returns:
+    list: A list of lexical chains, where each chain is a set of words.
+    """
+
+    # Tokenize the text
+    words = nltk.word_tokenize(text)
+
+    # Remove stopwords and punctuation
+    stop_words = set(nltk.corpus.stopwords.words("english"))
+    words = [
+        word.lower()
+        for word in words
+        if word.isalpha() and word.lower() not in stop_words
+    ]
+
+    # Function to get synonyms for a word
+    def get_synonyms(word):
+        synonyms = set()
+        for syn in wordnet.synsets(word):
+            for lemma in syn.lemmas():
+                synonyms.add(lemma.name().lower())
+        return synonyms
+
+    # Build lexical chains
+    lexical_chains = []
+    for word in words:
+        found_chain = False
+        word_synonyms = get_synonyms(word)
+        # Check if word fits into any existing chain
+        for chain in lexical_chains:
+            if chain.intersection(word_synonyms):
+                chain.update(word_synonyms)
+                found_chain = True
+                break
+        if not found_chain and word_synonyms:
+            lexical_chains.append(word_synonyms)
+
+    # Filter out empty chains
+    lexical_chains = [chain for chain in lexical_chains if chain]
+
+    return lexical_chains
+
+
+if __name__ == "__main__":
+    nltk.download("averaged_perceptron_tagger")
+    text = "The company will hire new employees. The employees will be trained by the HR department."
+    print(lexical_chains(text))
 
 
 def ner(df, text_column, pattern_df=None):
@@ -351,8 +689,75 @@ def ner_v0(df, text_column):
 
     return df
 
-def polysemy():
-    pass
+
+def polysemy(df, column_name):
+    """
+    Extract polysemous words from a given DataFrame column.
+
+    Args:
+    df (pd.DataFrame): DataFrame containing text data.
+    column_name (str): Name of the column to extract polysemous words from.
+
+    Returns:
+    pd.DataFrame: DataFrame with words and their corresponding polysemous senses.
+    """
+
+    # Get unique words from the DataFrame column
+    words = df[column_name].str.lower().str.split().explode().unique()
+
+    # Create a dictionary to store polysemous words
+    polysemy_dict = defaultdict(list)
+
+    # Populate the polysemy dictionary
+    for word in words:
+        synsets = wordnet.synsets(word)
+        if len(synsets) > 1:
+            # Check if the synsets are related (i.e., polysemous)
+            root_hypernyms = [synset.root_hypernyms() for synset in synsets]
+            if (
+                len(
+                    set([hypernym[0].name() for hypernym in root_hypernyms if hypernym])
+                )
+                == 1
+            ):
+                for synset in synsets:
+                    polysemy_dict[word].append(
+                        {
+                            "sense": synset.definition(),
+                            "pos": synset.pos(),
+                            "examples": synset.examples(),
+                        }
+                    )
+
+    # Filter out words with no polysemous senses
+    polysemy_dict = {k: v for k, v in polysemy_dict.items() if len(v) > 1}
+
+    # Create a DataFrame with words and their polysemous senses
+    output_df = pd.DataFrame(
+        [
+            (
+                word,
+                ", ".join([f"{sense['sense']} ({sense['pos']})" for sense in senses]),
+            )
+            for word, senses in polysemy_dict.items()
+        ],
+        columns=["word", "senses"],
+    )
+
+    return output_df
+
+
+if __name__ == "__main__":
+    df = pd.DataFrame(
+        {
+            "text": [
+                "The head of the company is very experienced",
+                "The head of the river is in the mountains",
+            ]
+        }
+    )
+    print(polysemy(df, "text"))
+
 
 def pos_tag(df, col):
     """Process the text and get POS tags"""
@@ -755,7 +1160,6 @@ if __name__ == "__main__":
     print(output_df)
 
 
-
 def wsd_example(word, context):
     # Simplistic approach for demonstration
     if word == "apple":
@@ -764,7 +1168,6 @@ def wsd_example(word, context):
         else:
             return "The fruit"
     return None
-
 
 
 def urls(df, text_column):
