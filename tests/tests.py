@@ -26,17 +26,19 @@ timer_end()
 # %% Exporting
 
 ## dataframe_to_data_table
-df = pd.DataFrame({'A': [1,2,3,4]})
+df = pd.DataFrame({"A": [1, 2, 3, 4]})
 dataframe_to_data_table(df)
-dataframe_to_data_table(df, out_file='x.html')
-dataframe_to_data_table(df, func='generate_data_table_from_dataframe_internet', out_file='x.html')
+dataframe_to_data_table(df, out_file="x.html")
+dataframe_to_data_table(
+    df, func="generate_data_table_from_dataframe_internet", out_file="x.html"
+)
 
 
 ## dataframe_to_excel
-df = pd.DataFrame({'A': [1,2,3,4]})
+df = pd.DataFrame({"A": [1, 2, 3, 4]})
 dataframe_to_excel(df)
-dataframe_to_excel(df, sheet_name='df')
-dataframe_to_excel(df, out_file=Path("C:/my_disk/____tmp/qc.xlsx"), sheet_name='df')
+dataframe_to_excel(df, sheet_name="df")
+dataframe_to_excel(df, out_file=Path("C:/my_disk/____tmp/qc.xlsx"), sheet_name="df")
 
 
 # %% Formatting
