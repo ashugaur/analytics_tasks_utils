@@ -4,15 +4,17 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
+# uv add mammoth markdownify matplotlib nbclient nbconvert nbformat nltk numpy pandas pip pyperclip spacy spellchecker youtube-transcript-api
 dependencies = [
     "mammoth>=1.10.0",
     "markdownify>=1.2.0",
-    "matplotlib-colors>=1.0.16",
+    "matplotlib>=3.10.5",
     "nbclient>=0.10.2",
     "nbconvert>=7.16.6",
     "nbformat>=5.10.4",
     "nltk>=3.9.1",
-    "numpy==2.1",
+    "numpy>=2.1.0",
+    "openpyxl>=3.1.5",
     "pandas>=2.3.1",
     "pip>=25.2",
     "pyperclip>=1.9.0",

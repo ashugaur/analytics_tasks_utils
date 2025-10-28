@@ -214,6 +214,7 @@ def entity_tracking(df, column_name):
 
     # Initialize a dictionary to store entity tracking
     entity_tracking = {}
+    nlp = spacy.load("en_core_web_sm")
 
     # Process the text data using SpaCy
     for text in df[column_name]:
