@@ -9,6 +9,7 @@ from nltk.corpus import wordnet, cmudict
 import textwrap
 import nltk
 from collections import defaultdict
+from analytics_tasks_utils.exporting import dataframe_to_excel
 # import coreferee
 
 
@@ -198,63 +199,6 @@ def emojis(string):
     )
 
     return emoji_pattern.sub(r"", string)
-
-
-def entity_tracking(df, column_name):
-    """
-    Extract entity tracking from a given DataFrame column.
-
-    Args:
-    df (pd.DataFrame): DataFrame containing text data.
-    column_name (str): Name of the column to extract entity tracking from.
-
-    Returns:
-    pd.DataFrame: DataFrame with entity tracking.
-    """
-
-    # Initialize a dictionary to store entity tracking
-    entity_tracking = {}
-    nlp = spacy.load("en_core_web_sm")
-
-    # Process the text data using SpaCy
-    for text in df[column_name]:
-        doc = nlp(text)
-        for sent in doc.sents:
-            # Iterate through named entities in the sentence
-            for ent in sent.ents:
-                # Track entities and update if seen again
-                if ent.text in entity_tracking:
-                    entity_tracking[ent.text]["count"] += 1
-                    entity_tracking[ent.text]["sentences"].append(sent.text)
-                else:
-                    entity_tracking[ent.text] = {
-                        "label": ent.label_,
-                        "count": 1,
-                        "sentences": [sent.text],
-                    }
-
-    # Create a DataFrame with entity tracking
-    output_df = pd.DataFrame(
-        [
-            (entity, info["label"], info["count"], ", ".join(info["sentences"]))
-            for entity, info in entity_tracking.items()
-        ],
-        columns=["entity", "label", "count", "sentences"],
-    )
-
-    return output_df
-
-
-if __name__ == "__main__":
-    df = pd.DataFrame(
-        {
-            "text": [
-                "John Smith is a developer. He works at XYZ Corporation.",
-                "John Smith is a great developer.",
-            ]
-        }
-    )
-    print(entity_tracking(df, "text"))
 
 
 def frequent_words(df, text_column, threshold=10):
@@ -611,7 +555,8 @@ def ner(df, text_column, pattern_df=None):
             {"label": row["label"], "pattern": row["pattern"].lower()}
             for index, row in pattern_df.iterrows()
         ]
-        ruler = nlp.add_pipe("entity_ruler")
+        ruler = nlp.add_pipe("entity_ruler", before="ner")
+        ruler.overwrite = True
         ruler.add_patterns(patterns)
     docs = nlp.pipe(
         df[text_column].astype(str).str.lower()
@@ -689,6 +634,110 @@ def ner_v0(df, text_column):
     df["entities"] = entities
 
     return df
+
+
+def ner_summary(df):
+    """
+    Extracts entities from a dataframe with 'text' and 'entities' columns
+    and returns a new dataframe with entity, label, count, and sentences columns.
+    
+    Parameters:
+    df: DataFrame with columns 'text' (str) and 'entities' (list of tuples)
+    
+    Returns:
+    DataFrame with columns: entity, label, count, sentences
+    """
+    # Dictionary to store entity info: {(entity, label): [sentences]}
+    entity_dict = defaultdict(list)
+    
+    # Iterate through each row
+    for idx, row in df.iterrows():
+        text = row['text']
+        entities = row['entities']
+        
+        # Process each entity in the row
+        for entity, label in entities:
+            # Store the sentence (text) for this entity
+            entity_dict[(entity, label)].append(text)
+    
+    # Build result dataframe
+    result_data = []
+    for (entity, label), sentences in entity_dict.items():
+        result_data.append({
+            'entity': entity,
+            'label': label,
+            'count': len(sentences),
+            'sentences': ', '.join(sentences)
+        })
+    
+    # Create dataframe and sort by entity
+    result_df = pd.DataFrame(result_data)
+    result_df = result_df.sort_values('entity').reset_index(drop=True)
+    
+    return result_df
+
+
+if __name__ == '__main__':
+    result_df = ner_summary(df_ner)
+    dataframe_to_excel(result_df, sheet_name='ner_summary')
+    print(result_df)
+
+
+def ner_tracking(df, column_name):
+    """
+    Extract entity tracking from a given DataFrame column.
+
+    Args:
+    df (pd.DataFrame): DataFrame containing text data.
+    column_name (str): Name of the column to extract entity tracking from.
+
+    Returns:
+    pd.DataFrame: DataFrame with entity tracking.
+    """
+
+    # Initialize a dictionary to store entity tracking
+    entity_tracking = {}
+    nlp = spacy.load("en_core_web_sm")
+
+    # Process the text data using SpaCy
+    for text in df[column_name]:
+        doc = nlp(text)
+        for sent in doc.sents:
+            # Iterate through named entities in the sentence
+            for ent in sent.ents:
+                # Track entities and update if seen again
+                if ent.text in entity_tracking:
+                    entity_tracking[ent.text]["count"] += 1
+                    entity_tracking[ent.text]["sentences"].append(sent.text)
+                else:
+                    entity_tracking[ent.text] = {
+                        "label": ent.label_,
+                        "count": 1,
+                        "sentences": [sent.text],
+                    }
+
+    # Create a DataFrame with entity tracking
+    output_df = pd.DataFrame(
+        [
+            (entity, info["label"], info["count"], ", ".join(info["sentences"]))
+            for entity, info in entity_tracking.items()
+        ],
+        columns=["entity", "label", "count", "sentences"],
+    )
+
+    return output_df
+
+
+if __name__ == "__main__":
+    df = pd.DataFrame(
+        {
+            "text": [
+                "John Smith is a developer. He works at XYZ Corporation.",
+                "John Smith is a great developer.",
+            ]
+        }
+    )
+    print(ner_tracking(df, "text"))
 
 
 def polysemy(df, column_name):
